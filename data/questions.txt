@@ -1,0 +1,2 @@
+What is the capital of France?,Geography,Easy,Paris,Paris,London,Berlin,Madrid
+2+2=?,Math,Easy,4,3,4,5,6

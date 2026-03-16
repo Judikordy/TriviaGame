@@ -2,6 +2,7 @@ package server;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,7 +13,7 @@ public class QuestionBank implements IQuestionBank {
     private List<Question> questions;
     public static final String questionsFilePath = "questions.txt";
 
-    public QuestionBank(){
+    public QuestionBank() {
         questions = new ArrayList<>();
     }
 
@@ -45,44 +46,61 @@ public class QuestionBank implements IQuestionBank {
             System.out.println("Error loading questions: " + e.getMessage());
         }
     }
-    
-        @Override
-        public void addQuestion(Question question) {
-            questions.add(question);
-        }
 
-        @Override
-        public void removeQuestion(Question question) {
-            questions.remove(question);
-            
-        }
+    @Override
+    public void addQuestion(Question question) {
+        questions.add(question);
+    }
 
-        @Override
-        public List<Question> getQuestionByCategory(String category) {
-            List<Question> result = new ArrayList<>();
-            for (Question q : questions){
-                if (q.getCategory().equalsIgnoreCase(category)){
-                    result.add(q);
-                }
+    @Override
+    public void removeQuestion(Question question) {
+        questions.remove(question);
+    }
+
+    @Override
+    public List<Question> getQuestionByCategory(String category) {
+        List<Question> result = new ArrayList<>();
+        for (Question q : questions) {
+            if (q.getCategory().equalsIgnoreCase(category)) {
+                result.add(q);
             }
-            return result;
         }
+        return result;
+    }
 
-        @Override
-        public List<Question> getQuestionByDifficulty(String difficulty) {
-            List<Question> result = new ArrayList<>();
-            for (Question q : questions){
-                if (q.getDifficulty().equalsIgnoreCase(difficulty)){
-                    result.add(q);
-                }
+    @Override
+    public List<Question> getQuestionByDifficulty(String difficulty) {
+        List<Question> result = new ArrayList<>();
+        for (Question q : questions) {
+            if (q.getDifficulty().equalsIgnoreCase(difficulty)) {
+                result.add(q);
             }
-            return result;
         }
+        return result;
+    }
 
-        @Override
-        public void saveQuestion(Question question) {
-            
-            
+    @Override
+    public void saveQuestion(Question question) {
+        try (FileWriter writer = new FileWriter(questionsFilePath, true)) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(question.getText()).append(",")
+              .append(question.getCategory()).append(",")
+              .append(question.getDifficulty()).append(",")
+              .append(question.getAnswer());
+            for (String choice : question.getChoices()) {
+                sb.append(",").append(choice);
+            }
+            sb.append("\n");
+            writer.write(sb.toString());
+        } catch (Exception e) {
+            System.out.println("Error saving question: " + e.getMessage());
         }
-    
+    }
+
+    // New helper method for random question selection
+    public Question getRandomQuestion() {
+        if (questions.isEmpty()) return null;
+        int index = (int)(Math.random() * questions.size());
+        return questions.get(index);
+    }
 }
