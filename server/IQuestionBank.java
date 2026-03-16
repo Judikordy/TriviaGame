@@ -12,5 +12,9 @@ public interface IQuestionBank {
     List<Question> getQuestionByDifficulty(String difficulty);
     public void loadQuestions();
     public void saveQuestion(Question question);
-
+    public List<Question> getAllQuestions();
+    public Question getRandomQuestion();
+    public List<Question> getQuestionsByCategoryAndDifficulty(String category, String difficulty);
+    public List<Question> getRandomQuestions(String category, String difficulty, int n);
+    
 }

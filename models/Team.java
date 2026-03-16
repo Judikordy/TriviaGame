@@ -1,8 +1,7 @@
-package server;
+package models;
 
 import java.util.ArrayList;
 import java.util.List;
-import models.User;
 
 public class Team {
     private String name;
@@ -28,4 +27,5 @@ public class Team {
     public int getSize() {
         return players.size();
     }
+    
 }

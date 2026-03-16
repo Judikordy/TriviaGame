@@ -91,4 +91,9 @@ public class AuthManager implements IAuthManager {
         }
     }
 
+    @Override
+    public User getUser(String username) {
+        return users.get(username);
+    }
+
 }

@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import models.Question;
@@ -11,7 +12,7 @@ import models.Question;
 public class QuestionBank implements IQuestionBank {
 
     private List<Question> questions;
-    public static final String questionsFilePath = "questions.txt";
+    public static final String questionsFilePath = "data/questions.txt";
 
     public QuestionBank() {
         questions = new ArrayList<>();
@@ -24,8 +25,9 @@ public class QuestionBank implements IQuestionBank {
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(",");
 
-                if (parts.length < 5) continue; // ignore invalid lines
+                 if (parts.length < 8) continue;
 
+                int id = Integer.parseInt(parts[0].trim());
                 String text = parts[0].trim();
                 String category = parts[1].trim();
                 String difficulty = parts[2].trim();
@@ -36,7 +38,7 @@ public class QuestionBank implements IQuestionBank {
                     choices.add(parts[i].trim());
                 }
 
-                Question q = new Question(text, category, difficulty, choices, answer);
+                Question q = new Question(id, text, category, difficulty, choices, answer);
                 questions.add(q);
             }
 
@@ -57,6 +59,16 @@ public class QuestionBank implements IQuestionBank {
         questions.remove(question);
     }
 
+    public Question getQuestionById(int id) {
+        for (Question q : questions) {
+            if (q.getId() == id) {
+                return q;
+            }
+        }
+        return null;
+
+        
+    }
     @Override
     public List<Question> getQuestionByCategory(String category) {
         List<Question> result = new ArrayList<>();
@@ -87,20 +99,67 @@ public class QuestionBank implements IQuestionBank {
               .append(question.getCategory()).append(",")
               .append(question.getDifficulty()).append(",")
               .append(question.getAnswer());
+
             for (String choice : question.getChoices()) {
                 sb.append(",").append(choice);
             }
+
             sb.append("\n");
             writer.write(sb.toString());
+
         } catch (Exception e) {
             System.out.println("Error saving question: " + e.getMessage());
         }
     }
 
-    // New helper method for random question selection
+    @Override
+    public List<Question> getAllQuestions() {
+        return new ArrayList<>(questions);
+    }
+
+    @Override
     public Question getRandomQuestion() {
         if (questions.isEmpty()) return null;
         int index = (int)(Math.random() * questions.size());
         return questions.get(index);
     }
+
+    @Override
+    public List<Question> getRandomQuestions(String category, String difficulty, int n) {
+
+        List<Question> filtered = getQuestionsByCategoryAndDifficulty(category, difficulty);
+
+        Collections.shuffle(filtered);
+
+        if (filtered.size() > n) {
+            return filtered.subList(0, n);
+        }
+
+        return filtered;
+    }
+
+    @Override
+    public List<Question> getQuestionsByCategoryAndDifficulty(String category, String difficulty) {
+        List<Question> result = new ArrayList<>();
+
+        for (Question q : questions) {
+            if (q.getCategory().equalsIgnoreCase(category) &&
+                q.getDifficulty().equalsIgnoreCase(difficulty)) {
+                result.add(q);
+            }
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+        QuestionBank questionBank = new QuestionBank();
+        questionBank.loadQuestions();
+
+        for (Question q : questionBank.getAllQuestions()) {
+            System.out.println(q);
+        }
+    }
+
+
 }

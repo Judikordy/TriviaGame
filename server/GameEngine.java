@@ -1,45 +1,65 @@
 package server;
 
 import models.Question;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.List;
 
 public class GameEngine {
+
     private QuestionBank questionBank;
+    private AuthManager authManager;
+    private ScoreManager scoreManager;
+    private ConfigManager configManager;
 
     public GameEngine() {
+        this.authManager = new AuthManager();
+        this.scoreManager = new ScoreManager();
+        this.configManager = new ConfigManager();
         this.questionBank = new QuestionBank();
         questionBank.loadQuestions();
     }
 
-    public void startRound(GameRoom room) {
-        Question q = questionBank.getRandomQuestion();
-        if (q == null) {
+    public void startRound(GameSession session, int questionIndex) {
+
+        List<Question> questions = questionBank.getAllQuestions();
+
+        if (questions.isEmpty()) {
             System.out.println("No questions available.");
             return;
         }
 
-        // Broadcast question to all teams/players
-        System.out.println("Question: " + q.getText());
-        System.out.println("Choices: " + q.getChoices());
+        if (questionIndex < 0 || questionIndex >= questions.size()) {
+            System.out.println("Invalid question index.");
+            return;
+        }
 
-        // Start 15s timer
-        Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
-            int countdown = 15;
+        Question q = questions.get(questionIndex);
 
-            @Override
-            public void run() {
-                if (countdown == 0) {
-                    System.out.println("Time's up!");
-                    timer.cancel();
-                } else {
-                    if (countdown == 15 || countdown == 10 || countdown == 5) {
-                        System.out.println("Countdown: " + countdown + " seconds left");
-                    }
-                    countdown--;
-                }
-            }
-        }, 0, 1000);
+        session.broadcast("Question: " + q.getText());
+        session.broadcast("Choices: " + q.getChoices());
+
+        session.openQuestion();
+    
+        int duration = configManager.getInt("questionTimeSeconds", 15);
+        session.startQuestionTimer(duration);
+    }
+
+    public boolean checkQuit(String input){
+        return input.trim().equals("-");
+    }
+
+    public AuthManager getAuthManager() {
+        return authManager;
+    }
+
+    public ScoreManager getScoreManager() {
+        return scoreManager;
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public QuestionBank getQuestionBank() {
+        return questionBank;
     }
 }
