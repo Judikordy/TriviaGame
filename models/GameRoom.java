@@ -56,9 +56,7 @@ public class GameRoom {
     }
 
     public GameSession getSession() {
-        if (session == null) {
-            session = new GameSession(this); // ✅ pass this room into the constructor
-        }
+        
         return session;
     }
 }
