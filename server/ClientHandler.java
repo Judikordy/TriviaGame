@@ -14,6 +14,7 @@ public class ClientHandler implements Runnable {
     private AuthManager auth;
     private static GameManager gameManager = new GameManager(); // shared across all clients
     private User currentUser;
+    private GameRoom currentRoom;
 
     public ClientHandler(Socket socket) {
         this.socket = socket;
@@ -77,6 +78,7 @@ public class ClientHandler implements Runnable {
                         }
                         String roomName = parts[1];
                         String result = gameManager.createRoom(roomName, true);
+                        gameManager.saveRoom(gameManager.getRoom(roomName));
 
                         if (result.startsWith("Room created")) {
                             out.println("Room '" + roomName + "' created successfully!");

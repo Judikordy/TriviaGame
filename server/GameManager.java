@@ -42,11 +42,17 @@ public class GameManager {
     }
 
     public void saveRoom(GameRoom room) {
+
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(roomsFilePath, true))) {
-            writer.write(room.getRoomName() + "," + room.isMultiplayer() + "," + room.getTeams().size());
+
+            writer.write(room.getRoomName() + "," +
+                     room.isMultiplayer() + "," +
+                     room.getTeams().size());
+
             writer.newLine();
+
         } catch (IOException e) {
-            System.out.println("Error saving room.");
+            System.out.println("Error saving user.");
         }
     }
 
