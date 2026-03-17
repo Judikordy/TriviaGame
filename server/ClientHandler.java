@@ -14,7 +14,6 @@ public class ClientHandler implements Runnable {
     private AuthManager auth;
     private static GameManager gameManager = new GameManager(); // shared across all clients
     private User currentUser;
-    private GameRoom currentRoom;
 
     public ClientHandler(Socket socket) {
         this.socket = socket;

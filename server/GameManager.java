@@ -85,7 +85,7 @@ public class GameManager {
         return null;
     }
 
-    
+
     public String startSession(String roomName) {
         GameRoom room = rooms.get(roomName);
         if (room == null) {
