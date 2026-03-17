@@ -22,6 +22,7 @@ public class GameManager {
         loadRooms();
     }
 
+    // Load rooms from file
     public void loadRooms() {
         try (BufferedReader reader = new BufferedReader(new FileReader(roomsFilePath))) {
             String line;
@@ -41,26 +42,24 @@ public class GameManager {
         }
     }
 
+    // Save a room to file
     public void saveRoom(GameRoom room) {
-
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(roomsFilePath, true))) {
-
-            writer.write(room.getRoomName() + "," +
-                     room.isMultiplayer() + "," +
-                     room.getTeams().size());
-
+            writer.write(room.getRoomName() + "," + room.isMultiplayer());
             writer.newLine();
-
         } catch (IOException e) {
-            System.out.println("Error saving user.");
+            System.out.println("Error saving room: " + e.getMessage());
         }
     }
 
+    // Create a new room
     public String createRoom(String roomName, boolean isMultiplayer) {
         if (rooms.containsKey(roomName)) {
-            return "Room already exists";
+            return "Room already exists.";
         }
-        rooms.put(roomName, new GameRoom(roomName, isMultiplayer));
+        GameRoom room = new GameRoom(roomName, isMultiplayer);
+        rooms.put(roomName, room);
+        saveRoom(room); // ✅ persist to file
         return "Room created: " + roomName;
     }
 
@@ -70,6 +69,31 @@ public class GameManager {
 
     public void removeRoom(String roomName) {
         rooms.remove(roomName);
+        // (Optional) rewrite rooms.txt without this room
+    }
+
+    // Join a room and create team if needed
+    public String joinRoom(String roomName, String teamName, User user) {
+        GameRoom room = rooms.get(roomName);
+        if (room == null) {
+            return "Room not found.";
+        }
+
+        Team team = null;
+        for (Team t : room.getTeams()) {
+            if (t.getName().equalsIgnoreCase(teamName)) {
+                team = t;
+                break;
+            }
+        }
+
+        if (team == null) {
+            team = new Team(teamName);
+            room.addTeam(team);
+        }
+
+        team.addPlayer(user);
+        return "Joined room " + roomName + " as team " + teamName;
     }
 
     public GameSession getSessionForUser(User user) {
@@ -85,7 +109,6 @@ public class GameManager {
         return null;
     }
 
-    
     public String startSession(String roomName) {
         GameRoom room = rooms.get(roomName);
         if (room == null) {
@@ -104,7 +127,6 @@ public class GameManager {
         return "Game started in room " + roomName + ".";
     }
 
-    
     public String stopSession(String roomName) {
         GameRoom room = rooms.get(roomName);
         if (room == null || room.getSession() == null) {
