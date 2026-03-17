@@ -9,8 +9,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class GameResults {
-
-    GameSession session;
+    private GameSession session;
 
     public GameResults(GameSession session) {
         this.session = session;
@@ -19,7 +18,7 @@ public class GameResults {
     public void evaluateResults() {
         if (session == null || session.getCurrentQuestion() == null) return;
 
-        session.endQuestion();
+        session.closeQuestion();
         Question question = session.getCurrentQuestion();
         String correctAnswer = question.getAnswer().trim().toLowerCase();
 
@@ -47,7 +46,7 @@ public class GameResults {
                 answeredUsers.add(username);
 
                 if (!answer.matches("[abcd]")) {
-                    session.sendMessage(username + " submitted invalid answer: " + answer);
+                    session.sendMessage(username, "Invalid answer submitted: " + answer);
                     incorrect.append(username).append(" ");
                     continue;
                 }

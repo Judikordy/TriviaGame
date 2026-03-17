@@ -5,48 +5,60 @@ import models.Question;
 import models.Team;
 import models.User;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-
 public class GameSession {
-
-    ClientHandler clientHandler;
-    ScoreManager scoreManager;
-    public GameRoom currentRoom;
-    private boolean questionActive = false;
+    private GameRoom currentRoom;
+    private GameEngine engine;
+    private int questionIndex = 0;
     private Question currentQuestion;
-    private final String ANSWERS_FILE = "data/answers.txt";
+    private boolean questionActive = false;
 
-    public void setHandler(ClientHandler handler) {
-        this.clientHandler = handler;
+    public GameSession(GameRoom room) {
+        this.currentRoom = room;
+        this.engine = new GameEngine();
     }
 
-    public void sendMessage(String message) {
-        if (clientHandler != null) {
-            clientHandler.sendMessage(message);
+    // Start the game
+    public void start() {
+        broadcast("Game started in room " + currentRoom.getRoomName());
+        nextRound();
+    }
+
+    // Run one round (one question)
+    public void nextRound() {
+        if (questionIndex >= engine.getQuestionBank().getAllQuestions().size()) {
+            broadcast("Game over! Thanks for playing.");
+            return;
         }
-    }
 
-    public void broadcast(String message) {
-        for (Team team : currentRoom.teams) {
-            for (User player : team.getPlayers()) {
-                player.sendMessage(message);
+        currentQuestion = engine.getQuestionBank().getAllQuestions().get(questionIndex);
+        broadcast("Question: " + currentQuestion.getText());
+        broadcast("Choices: " + currentQuestion.getChoices());
+
+        openQuestion();
+        int duration = engine.getConfigManager().getInt("questionTimeSeconds", 15);
+
+        // Start countdown timer
+        startQuestionTimer(duration);
+
+        // After duration, evaluate results and move to next question
+        new Thread(() -> {
+            try {
+                Thread.sleep(duration * 1000);
+                new GameResults(this).evaluateResults();
+                questionIndex++;
+                nextRound();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-        }
-    }
-
-     public String getQuestionName() {
-        if (currentQuestion != null) {
-            return currentQuestion.getText();
-        }
-        return null;
+        }).start();
     }
 
     public Question getCurrentQuestion() {
         return currentQuestion;
+    }
+
+    public String getQuestionName() {
+        return currentQuestion != null ? currentQuestion.getText() : null;
     }
 
     public boolean isQuestionActive() {
@@ -57,67 +69,43 @@ public class GameSession {
         questionActive = true;
     }
 
-    public void closeQuestion(){
+    public void closeQuestion() {
         questionActive = false;
     }
 
-    public void startQuestion(Question question, int duration) {
-        this.currentQuestion = question;
-        openQuestion();
-        startQuestionTimer(duration);
-    }
-
-    public void endQuestion() {
-        closeQuestion();
-
-    }
-
-    public void submitAnswer(User user, String questionName, String answer) {
+    // Save and validate answers
+    public String submitAnswer(User user, String questionName, String answer) {
         if (!questionActive) {
-            sendMessage("No active question. Answer ignored.");
-            return;
+            return "No active question. Answer ignored.";
         }
-
         answer = answer.trim().toLowerCase();
-
         if (!answer.matches("[abcd]")) {
-            sendMessage("Invalid answer. Please answer with A, B, C, or D.");
-            return;
+            return "Invalid answer. Please answer with A, B, C, or D.";
         }
+        AnswerManager.saveAnswer(user.getUsername(), questionName, answer);
+        return "Answer submitted: " + answer.toUpperCase();
+    }
 
-        try (BufferedReader br = new BufferedReader(new FileReader(ANSWERS_FILE))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split("\\|");
-                if (parts.length < 4) continue;
+    // Broadcast to all players in the room
+    public void broadcast(String message) {
+        for (Team team : currentRoom.getTeams()) {
+            for (User player : team.getPlayers()) {
+                player.sendMessage(message);
+            }
+        }
+    }
 
-                String username = parts[0];
-                String qName = parts[1];
-
-                if (username.equals(user.getUsername()) && qName.equals(questionName)) {
-                    sendMessage("You have already answered this question. Ignored.");
-                    return;
+    public void sendMessage(String username, String message) {
+        for (Team team : currentRoom.getTeams()) {
+            for (User player : team.getPlayers()) {
+                if (player.getUsername().equals(username)) {
+                    player.sendMessage(message);
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            sendMessage("Error checking previous answers. Try again.");
-            return;
-        }
-
-        String lineToWrite = user.getUsername() + "|" + questionName + "|" + answer + "|" + java.time.LocalDateTime.now();
-
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(ANSWERS_FILE, true))) {
-            bw.write(lineToWrite);
-            bw.newLine();
-            bw.flush();
-            sendMessage("Answer submitted: " + answer.toUpperCase());
-        } catch (IOException e) {
-            e.printStackTrace();
-            sendMessage("Error saving your answer. Try again.");
         }
     }
 
+    // Countdown timer with updates
     public void startQuestionTimer(int duration) {
         new Thread(() -> {
             try {
@@ -125,33 +113,14 @@ public class GameSession {
                     Thread.sleep((duration - 10) * 1000);
                     broadcast("10 seconds remaining!");
                 }
-
                 Thread.sleep(5000);
                 broadcast("5 seconds remaining!");
-
                 Thread.sleep(5000);
                 broadcast("Time is up!");
-
                 closeQuestion();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }).start();
     }
-
-
-    public static void main(String[] args) {
-    GameSession session = new GameSession();
-    session.openQuestion(); // mark question as active
-    System.out.println("Question started!");
-    
-    session.startQuestionTimer(15);
-
-    // Keep main alive until the thread finishes
-    try {
-        Thread.sleep(16000); // 16 seconds to see all messages
-    } catch (InterruptedException e) {
-        e.printStackTrace();
-    }
-}
 }

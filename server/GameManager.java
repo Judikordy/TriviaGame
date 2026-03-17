@@ -25,15 +25,12 @@ public class GameManager {
     public void loadRooms() {
         try (BufferedReader reader = new BufferedReader(new FileReader(roomsFilePath))) {
             String line;
-
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(",");
-
                 if (parts.length >= 2) {
                     String name = parts[0].trim();
                     boolean isMultiplayer = Boolean.parseBoolean(parts[1].trim());
                     GameRoom room = new GameRoom(name, isMultiplayer);
-
                     rooms.put(name, room);
                 }
             }
@@ -45,13 +42,9 @@ public class GameManager {
     }
 
     public void saveRoom(GameRoom room) {
-
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(roomsFilePath, true))) {
-
             writer.write(room.getRoomName() + "," + room.isMultiplayer() + "," + room.getTeams().size());
-
             writer.newLine();
-
         } catch (IOException e) {
             System.out.println("Error saving room.");
         }
@@ -74,19 +67,44 @@ public class GameManager {
     }
 
     public GameSession getSessionForUser(User user) {
-
         for (GameRoom room : rooms.values()) {
             for (Team team : room.getTeams()) {
                 for (User player : team.getPlayers()) {
-
                     if (player.equals(user)) {
                         return room.getSession();
                     }
-
                 }
             }
         }
-
         return null;
+    }
+
+    
+    public String startSession(String roomName) {
+        GameRoom room = rooms.get(roomName);
+        if (room == null) {
+            return "Room not found.";
+        }
+        if (room.getTeams().size() < 2) {
+            return "Need at least 2 teams to start the game.";
+        }
+        if (room.getSession() != null) {
+            return "Game already in progress for room " + roomName;
+        }
+
+        GameSession session = new GameSession(room);
+        room.setSession(session);
+        session.start();
+        return "Game started in room " + roomName + ".";
+    }
+
+    
+    public String stopSession(String roomName) {
+        GameRoom room = rooms.get(roomName);
+        if (room == null || room.getSession() == null) {
+            return "No active session for room " + roomName;
+        }
+        room.setSession(null);
+        return "Game session ended for room " + roomName;
     }
 }

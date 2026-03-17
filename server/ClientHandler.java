@@ -36,7 +36,6 @@ public class ClientHandler implements Runnable {
 
                 String command = parts[0].toUpperCase();
 
-
                 switch (command) {
                     case "LOGIN":
                         if (parts.length < 3) {
@@ -79,7 +78,7 @@ public class ClientHandler implements Runnable {
                         String roomName = parts[1];
                         String result = gameManager.createRoom(roomName, true);
 
-                        if(result.startsWith("Room created")) {
+                        if (result.startsWith("Room created")) {
                             out.println("Room '" + roomName + "' created successfully!");
                         } else {
                             out.println("Failed to create room: " + result);
@@ -112,28 +111,33 @@ public class ClientHandler implements Runnable {
                         out.println("Joined room " + parts[1] + " as team " + parts[2]);
                         break;
 
+                    case "START_GAME":
+                        if (parts.length < 2) {
+                            out.println("Usage: START_GAME <roomName>");
+                            break;
+                        }
+                        String startRoom = parts[1];
+                        String startResult = gameManager.startSession(startRoom);
+                        out.println(startResult);
+                        break;
+
                     case "ANSWER":
                         if (parts.length < 2) {
                             out.println("Usage: ANSWER <choice>");
                             break;
                         }
-
                         if (currentUser == null) {
                             out.println("Please login first.");
                             break;
                         }
-
                         String answer = parts[1];
-
                         GameSession session = gameManager.getSessionForUser(currentUser);
-
                         if (session == null) {
                             out.println("You are not in an active game.");
                             break;
                         }
-
-                        session.submitAnswer(currentUser, session.getQuestionName(), answer);
-
+                        String feedback = session.submitAnswer(currentUser, session.getQuestionName(), answer);
+                        out.println(feedback);
                         break;
 
                     case "EXIT":
@@ -153,6 +157,4 @@ public class ClientHandler implements Runnable {
     public void sendMessage(String message) {
         out.println(message);
     }
-
-
 }

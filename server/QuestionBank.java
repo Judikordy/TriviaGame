@@ -25,16 +25,16 @@ public class QuestionBank implements IQuestionBank {
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(",");
 
-                 if (parts.length < 8) continue;
+                if (parts.length < 9) continue; // id + text + category + difficulty + answer + 4 choices
 
                 int id = Integer.parseInt(parts[0].trim());
-                String text = parts[0].trim();
-                String category = parts[1].trim();
-                String difficulty = parts[2].trim();
-                String answer = parts[3].trim();
+                String text = parts[1].trim();
+                String category = parts[2].trim();
+                String difficulty = parts[3].trim();
+                String answer = parts[4].trim();
 
                 List<String> choices = new ArrayList<>();
-                for (int i = 4; i < parts.length; i++) {
+                for (int i = 5; i < parts.length; i++) {
                     choices.add(parts[i].trim());
                 }
 
@@ -66,9 +66,8 @@ public class QuestionBank implements IQuestionBank {
             }
         }
         return null;
-
-        
     }
+
     @Override
     public List<Question> getQuestionByCategory(String category) {
         List<Question> result = new ArrayList<>();
@@ -95,7 +94,8 @@ public class QuestionBank implements IQuestionBank {
     public void saveQuestion(Question question) {
         try (FileWriter writer = new FileWriter(questionsFilePath, true)) {
             StringBuilder sb = new StringBuilder();
-            sb.append(question.getText()).append(",")
+            sb.append(question.getId()).append(",")
+              .append(question.getText()).append(",")
               .append(question.getCategory()).append(",")
               .append(question.getDifficulty()).append(",")
               .append(question.getAnswer());
@@ -126,29 +126,24 @@ public class QuestionBank implements IQuestionBank {
 
     @Override
     public List<Question> getRandomQuestions(String category, String difficulty, int n) {
-
         List<Question> filtered = getQuestionsByCategoryAndDifficulty(category, difficulty);
-
         Collections.shuffle(filtered);
 
         if (filtered.size() > n) {
             return filtered.subList(0, n);
         }
-
         return filtered;
     }
 
     @Override
     public List<Question> getQuestionsByCategoryAndDifficulty(String category, String difficulty) {
         List<Question> result = new ArrayList<>();
-
         for (Question q : questions) {
             if (q.getCategory().equalsIgnoreCase(category) &&
                 q.getDifficulty().equalsIgnoreCase(difficulty)) {
                 result.add(q);
             }
         }
-
         return result;
     }
 
@@ -160,6 +155,4 @@ public class QuestionBank implements IQuestionBank {
             System.out.println(q);
         }
     }
-
-
 }
