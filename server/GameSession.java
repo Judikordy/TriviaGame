@@ -30,15 +30,11 @@ public class GameSession {
             return;
         }
 
+        // ✅ Use GameEngine to broadcast the question
+        engine.startRound(this, questionIndex);
         currentQuestion = engine.getQuestionBank().getAllQuestions().get(questionIndex);
-        broadcast("Question: " + currentQuestion.getText());
-        broadcast("Choices: " + currentQuestion.getChoices());
 
-        openQuestion();
         int duration = engine.getConfigManager().getInt("questionTimeSeconds", 15);
-
-        // Start countdown timer
-        startQuestionTimer(duration);
 
         // After duration, evaluate results and move to next question
         new Thread(() -> {
