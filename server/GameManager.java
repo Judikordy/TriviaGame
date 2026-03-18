@@ -1,145 +1,137 @@
 package server;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import models.GameRoom;
 import models.Team;
 import models.User;
+import java.util.*;
 
 public class GameManager {
-    private Map<String, GameRoom> rooms;
-    private final String roomsFilePath = "data/rooms.txt";
 
-    public GameManager() {
-        rooms = new HashMap<>();
-        loadRooms();
+    private static GameManager INSTANCE;
+
+    public static synchronized GameManager instance() {
+        if (INSTANCE == null) INSTANCE = new GameManager();
+        return INSTANCE;
     }
 
-    // Load rooms from file
-    public void loadRooms() {
-        try (BufferedReader reader = new BufferedReader(new FileReader(roomsFilePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    String name = parts[0].trim();
-                    boolean isMultiplayer = Boolean.parseBoolean(parts[1].trim());
-                    GameRoom room = new GameRoom(name, isMultiplayer);
-                    rooms.put(name, room);
-                }
-            }
-        } catch (FileNotFoundException e) {
-            System.out.println("rooms.txt file not found. Starting with an empty room list.");
-        } catch (IOException e) {
-            e.printStackTrace();
+    public static class TeamInfo {
+        public final Team   team;
+        public final String category;
+        public final String difficulty;
+        public final int    maxQuestions;
+
+        public TeamInfo(Team t, String cat, String diff, int mq) {
+            team = t; category = cat; difficulty = diff; maxQuestions = mq;
         }
     }
 
-    // Save a room to file
-    public void saveRoom(GameRoom room) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(roomsFilePath, true))) {
-            writer.write(room.getRoomName() + "," + room.isMultiplayer() + "," + room.getTeams().size());
-            writer.newLine();
-        } catch (IOException e) {
-            System.out.println("Error saving room: " + e.getMessage());
-        }
+    private final ConfigManager           config         = new ConfigManager();
+    private final Map<String,List<Team>>  waitingTeams   = new HashMap<>();
+    private final Map<String,TeamInfo>    teamInfoMap    = new HashMap<>();
+    private final List<GameSession>       activeSessions = new ArrayList<>();
+    private final Map<String,Team>        playerTeamMap  = new HashMap<>();
+
+    private GameManager() {}
+
+    public int getMaxPlayersPerTeam() {
+        return config.getInt("maxPlayersPerTeam", 1);
     }
 
-    // Create a new room
-    public String createRoom(String roomName, boolean isMultiplayer) {
-        if (rooms.containsKey(roomName)) {
-            return "Room already exists.";
-        }
-        GameRoom room = new GameRoom(roomName, isMultiplayer);
-        rooms.put(roomName, room);
-        return "Room created: " + roomName;
+    public synchronized boolean teamExists(String name) {
+        return teamInfoMap.containsKey(name.toLowerCase());
     }
 
-    public GameRoom getRoom(String roomName) {
-        return rooms.get(roomName);
+    public synchronized TeamInfo getTeamInfo(String name) {
+        return teamInfoMap.get(name.toLowerCase());
     }
 
-    public void removeRoom(String roomName) {
-        rooms.remove(roomName);
-        // (Optional) rewrite rooms.txt without this room
-    }
+    public synchronized Team registerPlayer(
+            User user, String teamName,
+            String category, String difficulty, int maxQ) {
 
-    // Join a room and create team if needed
-    public String joinRoom(String roomName, String teamName, User user) {
-        GameRoom room = rooms.get(roomName);
-        if (room == null) {
-            return "Room not found.";
-        }
+        String key = key(category, difficulty, maxQ);
+        List<Team> pool = waitingTeams.computeIfAbsent(key, k -> new ArrayList<>());
 
         Team team = null;
-        for (Team t : room.getTeams()) {
-            if (t.getName().equalsIgnoreCase(teamName)) {
-                team = t;
-                break;
-            }
+        for (Team t : pool) {
+            if (t.getName().equalsIgnoreCase(teamName)) { team = t; break; }
         }
-
         if (team == null) {
             team = new Team(teamName);
-            room.addTeam(team);
+            pool.add(team);
+            teamInfoMap.put(teamName.toLowerCase(),
+                    new TeamInfo(team, category, difficulty, maxQ));
         }
 
         team.addPlayer(user);
-        return "Joined room " + roomName + " as team " + teamName;
+        playerTeamMap.put(user.getUsername(), team);
+
+        if (team.getSize() >= getMaxPlayersPerTeam()) {
+            tryMatch(team, category, difficulty, maxQ, pool);
+        }
+        return team;
     }
 
-    public void listAvailableTeams() {
-        for (GameRoom room : rooms.values()) {
-            for (Team team : room.getTeams()) {
-                System.out.println("Room: " + room.getRoomName() + ", Team: " + team.getName());
-            }
+    public synchronized void onHandlerSet(
+            User user, String category, String difficulty, int maxQ) {
+        Team team = playerTeamMap.get(user.getUsername());
+        if (team == null || team.getSize() < getMaxPlayersPerTeam()) return;
+        List<Team> pool = waitingTeams.getOrDefault(
+                key(category, difficulty, maxQ), new ArrayList<>());
+        tryMatch(team, category, difficulty, maxQ, pool);
+    }
+
+    private void tryMatch(
+            Team full, String category, String difficulty,
+            int maxQ, List<Team> pool) {
+        int max = getMaxPlayersPerTeam();
+        for (Iterator<Team> it = pool.iterator(); it.hasNext(); ) {
+            Team opp = it.next();
+            if (opp == full || opp.getSize() < max) continue;
+            it.remove();
+            pool.remove(full);
+            teamInfoMap.remove(full.getName().toLowerCase());
+            teamInfoMap.remove(opp.getName().toLowerCase());
+            List<Team> matched = Arrays.asList(full, opp);
+            GameSession session = new GameSession(matched, category, difficulty, maxQ);
+            activeSessions.add(session);
+            System.out.println("[MATCH] " + full.getName()
+                    + " vs " + opp.getName()
+                    + " | " + category + " | " + difficulty + " | " + maxQ + "q");
+            session.start();
+            return;
         }
     }
 
-    public GameSession getSessionForUser(User user) {
-        for (GameRoom room : rooms.values()) {
-            for (Team team : room.getTeams()) {
-                for (User player : team.getPlayers()) {
-                    if (player.equals(user)) {
-                        return room.getSession();
-                    }
+    public synchronized GameSession getSessionForUser(User user) {
+        for (GameSession s : activeSessions) {
+            for (Team t : s.getTeams()) {
+                for (User p : t.getPlayers()) {
+                    if (p.getUsername().equals(user.getUsername())) return s;
                 }
             }
         }
         return null;
     }
 
-    public String startSession(String roomName) {
-        GameRoom room = rooms.get(roomName);
-        if (room == null) {
-            return "Room not found.";
-        }
-        if (room.getTeams().size() < 2) {
-            return "Need at least 2 teams to start the game.";
-        }
-        if (room.getSession() != null) {
-            return "Game already in progress for room " + roomName;
-        }
-
-        GameSession session = new GameSession(room);
-        room.setSession(session);
-        session.start();
-        return "Game started in room " + roomName + ".";
+    public synchronized void removeSession(GameSession session) {
+        activeSessions.remove(session);
     }
 
-    public String stopSession(String roomName) {
-        GameRoom room = rooms.get(roomName);
-        if (room == null || room.getSession() == null) {
-            return "No active session for room " + roomName;
+    public synchronized void removePlayer(User user) {
+        Team team = playerTeamMap.remove(user.getUsername());
+        if (team == null) return;
+        team.getPlayers().remove(user);
+        if (team.getSize() == 0) {
+            for (List<Team> pool : waitingTeams.values()) pool.remove(team);
+            teamInfoMap.remove(team.getName().toLowerCase());
         }
-        room.setSession(null);
-        return "Game session ended for room " + roomName;
+    }
+
+    public Team getTeamForUser(User user) {
+        return playerTeamMap.get(user.getUsername());
+    }
+
+    private String key(String category, String difficulty, int maxQ) {
+        return category + "|" + difficulty + "|" + maxQ;
     }
 }

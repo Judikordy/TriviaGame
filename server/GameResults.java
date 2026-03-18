@@ -1,69 +1,105 @@
 package server;
 
 import models.Question;
+import models.Team;
+import models.User;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class GameResults {
-    private GameSession session;
 
-    public GameResults(GameSession session) {
-        this.session = session;
-    }
+    private final GameSession session;
+
+    public GameResults(GameSession session) { this.session = session; }
 
     public void evaluateResults() {
         if (session == null || session.getCurrentQuestion() == null) return;
-
         session.closeQuestion();
-        Question question = session.getCurrentQuestion();
-        String correctAnswer = question.getAnswer().trim().toLowerCase();
 
-        session.broadcast("Evaluating results for question: " + question.getText());
+        Question question    = session.getCurrentQuestion();
+        String correctAnswer = question.getAnswer().trim().toUpperCase();
+        int    points        = pointsFor(question.getDifficulty());
 
-        Set<String> answeredUsers = new HashSet<>();
+        session.broadcast("--- Results: " + question.getText() + " ---");
+        session.broadcast("Correct answer: " + correctAnswer);
 
-        try (BufferedReader br = new BufferedReader(new FileReader("data/answers.txt"))) {
-            String line;
-            StringBuilder correct = new StringBuilder();
-            StringBuilder incorrect = new StringBuilder();
+        List<Map<String, Object>> answers =
+                AnswerManager.getAnswersForQuestion(session.getSessionId(), question.getText());
 
-            while ((line = br.readLine()) != null) {
-                // line format: username|questionName|answer|timestamp
-                String[] parts = line.split("\\|");
-                if (parts.length < 4) continue;
+        Set<String>  seen      = new HashSet<>();
+        List<String> correct   = new ArrayList<>();
+        List<String> incorrect = new ArrayList<>();
 
-                String username = parts[0];
-                String questionName = parts[1];
-                String answer = parts[2].trim().toLowerCase();
+        for (Map<String, Object> r : answers) {
+            String username = (String) r.get("username");
+            String answer   = ((String) r.get("answer")).trim().toUpperCase();
+            if (seen.contains(username)) continue;
+            seen.add(username);
+            if (answer.matches("[ABCD]") && answer.equals(correctAnswer)) {
+                correct.add(username);
+                session.addScore(username, points);
+                session.recordQuestionResult(username, question.getText(), answer, correctAnswer, true, points);
+            } else {
+                incorrect.add(username);
+                session.recordQuestionResult(username, question.getText(), answer, correctAnswer, false, 0);
+            }
+        }
 
-                if (!questionName.equals(question.getText())) continue;
+        // Players who did not answer
+        for (Team team : session.getTeams())
+            for (User p : team.getPlayers())
+                if (!seen.contains(p.getUsername()))
+                    session.recordQuestionResult(p.getUsername(), question.getText(), "-", correctAnswer, false, 0);
 
-                if (answeredUsers.contains(username)) continue;
-                answeredUsers.add(username);
+        session.broadcast("Correct (+" + points + " pts): " + (correct.isEmpty()   ? "None" : String.join(", ", correct)));
+        session.broadcast("Incorrect:              "        + (incorrect.isEmpty() ? "None" : String.join(", ", incorrect)));
+        session.broadcastIndividualScores();
+    }
 
-                if (!answer.matches("[abcd]")) {
-                    session.sendMessage(username, "Invalid answer submitted: " + answer);
-                    incorrect.append(username).append(" ");
-                    continue;
-                }
+    public void showFinalScoreboard(List<Team> teams) {
+        session.broadcast("\n+==============================+");
+        session.broadcast("|       FINAL SCOREBOARD       |");
+        session.broadcast("+==============================+");
 
-                if (answer.equals(correctAnswer)) {
-                    correct.append(username).append(" ");
-                } else {
-                    incorrect.append(username).append(" ");
+        String winnerTeam  = null;
+        int    winnerScore = -1;
+
+        for (Team team : teams) {
+            int teamTotal = 0;
+            session.broadcast("\n  Team: " + team.getName());
+            session.broadcast("  ------------------------------");
+
+            for (User p : team.getPlayers()) {
+                int score = session.getScore(p.getUsername());
+                teamTotal += score;
+                session.broadcast("    " + p.getName() + " (" + p.getUsername() + "): " + score + " pts");
+
+                List<Map<String, Object>> qResults = session.getPlayerQuestionResults(p.getUsername());
+                if (qResults != null && !qResults.isEmpty()) {
+                    for (Map<String, Object> qr : qResults) {
+                        boolean ok = Boolean.TRUE.equals(qr.get("correct"));
+                        session.broadcast("      [" + (ok ? "OK" : "XX") + "] "
+                                + qr.get("question")
+                                + " | Your answer: " + qr.get("yourAnswer")
+                                + " | Correct: "     + qr.get("correctAnswer"));
+                    }
                 }
             }
 
-            session.broadcast("Correct answers: " + (correct.length() > 0 ? correct.toString() : "None"));
-            session.broadcast("Incorrect answers: " + (incorrect.length() > 0 ? incorrect.toString() : "None"));
+            session.broadcast("  Team Total: " + teamTotal + " pts");
+            if (teamTotal > winnerScore) { winnerScore = teamTotal; winnerTeam = team.getName(); }
+        }
 
-        } catch (IOException e) {
-            e.printStackTrace();
-            session.broadcast("Error reading answers for evaluation.");
+        session.broadcast("\n------------------------------");
+        session.broadcast("  WINNER: " + (winnerTeam != null ? winnerTeam : "Draw") + " with " + winnerScore + " pts");
+        session.broadcast("------------------------------\n");
+    }
+
+    private int pointsFor(String difficulty) {
+        switch (difficulty.toLowerCase()) {
+            case "hard":   return 30;
+            case "medium": return 20;
+            default:       return 10;
         }
     }
 }

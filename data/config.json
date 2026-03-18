@@ -1,0 +1,9 @@
+[
+  {
+    "questionTimeSeconds": 15,
+    "minPlayersPerTeam": 1,
+    "maxPlayersPerTeam": 2,
+    "minTeams": 2,
+    "maxTeams": 4
+  }
+]

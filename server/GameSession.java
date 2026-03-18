@@ -1,122 +1,193 @@
 package server;
 
-import models.GameRoom;
 import models.Question;
 import models.Team;
 import models.User;
 
+import java.util.*;
+
 public class GameSession {
-    private GameRoom currentRoom;
-    private GameEngine engine;
-    private int questionIndex = 0;
+
+    private final String     sessionId;
+    private final List<Team> teams;
+    private final GameEngine engine;
+    private final ScoreManager scoreManager;
+    private final List<Question> questions;
+    private final String category;
+    private final String difficulty;
+
+    // username -> current session score
+    private final Map<String, Integer> sessionScores = new HashMap<>();
+    // username -> list of per-question result maps
+    private final Map<String, List<Map<String, Object>>> playerQuestionResults = new HashMap<>();
+
+    private int      questionIndex = 0;
     private Question currentQuestion;
-    private boolean questionActive = false;
+    private volatile boolean questionActive = false;
 
-    public GameSession(GameRoom room) {
-        this.currentRoom = room;
-        this.engine = new GameEngine();
+    public GameSession(List<Team> teams, String category, String difficulty, int maxQuestions) {
+        this.sessionId    = UUID.randomUUID().toString();
+        this.teams        = teams;
+        this.engine       = new GameEngine();
+        this.scoreManager = new ScoreManager();
+        this.category     = category != null ? category : "";
+        this.difficulty   = difficulty != null ? difficulty : "";
+
+        List<Question> pool = (category != null && difficulty != null && maxQuestions > 0)
+                ? engine.getQuestionBank().getRandomQuestions(category, difficulty, maxQuestions)
+                : engine.getQuestionBank().getAllQuestions();
+        this.questions = pool;
+
+        for (Team t : teams)
+            for (User p : t.getPlayers()) {
+                sessionScores.put(p.getUsername(), 0);
+                playerQuestionResults.put(p.getUsername(), new ArrayList<>());
+            }
     }
 
-    // Start the game
+    // ----------------------------------------------------------------- start
+
     public void start() {
-        broadcast("Game started in room " + currentRoom.getRoomName());
-        nextRound();
+        broadcast("=== Game Starting ===");
+        broadcast("Session: " + sessionId);
+        broadcast("Questions: " + questions.size());
+        broadcast("Teams: " + teamNames());
+        new Thread(() -> {
+            try { Thread.sleep(2000); nextRound(); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }).start();
     }
 
-    // Run one round (one question)
+    // --------------------------------------------------------------- rounds
+
     public void nextRound() {
-        if (questionIndex >= engine.getQuestionBank().getAllQuestions().size()) {
-            broadcast("Game over! Thanks for playing.");
-            return;
-        }
+        if (questionIndex >= questions.size()) { endGame(); return; }
 
-        // ✅ Use GameEngine to broadcast the question
-        engine.startRound(this, questionIndex);
-        currentQuestion = engine.getQuestionBank().getAllQuestions().get(questionIndex);
+        currentQuestion = questions.get(questionIndex);
+        int duration    = engine.getConfigManager().getInt("questionTimeSeconds", 15);
 
-        int duration = engine.getConfigManager().getInt("questionTimeSeconds", 15);
+        broadcast("\nQuestion " + (questionIndex + 1) + "/" + questions.size()
+                + " [" + currentQuestion.getCategory() + " | " + currentQuestion.getDifficulty() + "]");
+        broadcast(currentQuestion.getText());
 
-        // After duration, evaluate results and move to next question
+        String[] labels = {"A", "B", "C", "D"};
+        List<String> choices = currentQuestion.getChoices();
+        for (int i = 0; i < choices.size() && i < 4; i++)
+            broadcast("  " + labels[i] + ") " + choices.get(i));
+
+        broadcast("You have " + duration + " seconds. Type: ANSWER <A/B/C/D>");
+        questionActive = true;
+
+        final int qIdx = questionIndex;
         new Thread(() -> {
             try {
-                Thread.sleep(duration * 1000);
+                broadcastCountdown(duration);
+                questionActive = false;
+                broadcast("[TIME'S UP]");
                 new GameResults(this).evaluateResults();
                 questionIndex++;
+                Thread.sleep(2000);
                 nextRound();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }, "timer-q" + qIdx).start();
+    }
+
+    private void broadcastCountdown(int duration) throws InterruptedException {
+        int[] checkpoints = {15, 10, 5, 4, 3, 2, 1};
+        int elapsed = 0;
+        for (int cp : checkpoints) {
+            if (cp >= duration) continue;
+            int wait = duration - cp - elapsed;
+            if (wait > 0) { Thread.sleep(wait * 1000L); elapsed += wait; }
+            if (questionActive) broadcast("[TIMER] " + cp + " seconds remaining!");
+        }
+        Thread.sleep(1000);
+    }
+
+    // ---------------------------------------------------------------- end game
+
+    private void endGame() {
+        new GameResults(this).showFinalScoreboard(teams);
+
+        // Save detailed score history per player
+        for (Team team : teams) {
+            for (User player : team.getPlayers()) {
+                int earned = sessionScores.getOrDefault(player.getUsername(), 0);
+                scoreManager.addPoints(player, earned);
+                List<Map<String, Object>> qDetails = playerQuestionResults.getOrDefault(
+                        player.getUsername(), new ArrayList<>());
+                scoreManager.saveGameRecord(player, category, difficulty, "multiplayer", qDetails);
             }
-        }).start();
-    }
-
-    public Question getCurrentQuestion() {
-        return currentQuestion;
-    }
-
-    public String getQuestionName() {
-        return currentQuestion != null ? currentQuestion.getText() : null;
-    }
-
-    public boolean isQuestionActive() {
-        return questionActive;
-    }
-
-    public void openQuestion() {
-        questionActive = true;
-    }
-
-    public void closeQuestion() {
-        questionActive = false;
-    }
-
-    // Save and validate answers
-    public String submitAnswer(User user, String questionName, String answer) {
-        if (!questionActive) {
-            return "No active question. Answer ignored.";
         }
-        answer = answer.trim().toLowerCase();
-        if (!answer.matches("[abcd]")) {
-            return "Invalid answer. Please answer with A, B, C, or D.";
-        }
-        AnswerManager.saveAnswer(user.getUsername(), questionName, answer);
-        return "Answer submitted: " + answer.toUpperCase();
+
+        broadcast("Scores saved. Thanks for playing!");
+        GameManager.instance().removeSession(this);
     }
 
-    // Broadcast to all players in the room
+    // ----------------------------------------------------------- score helpers
+
+    public void addScore(String username, int points) {
+        sessionScores.merge(username, points, Integer::sum);
+    }
+
+    public int getScore(String username) {
+        return sessionScores.getOrDefault(username, 0);
+    }
+
+    /** Record per-question result for a player. */
+    public void recordQuestionResult(String username, String questionText,
+                                     String yourAnswer, String correctAnswer,
+                                     boolean correct, int pointsEarned) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("question",      questionText);
+        entry.put("yourAnswer",    yourAnswer);
+        entry.put("correctAnswer", correctAnswer);
+        entry.put("correct",       correct);
+        entry.put("pointsEarned",  pointsEarned);
+        playerQuestionResults.computeIfAbsent(username, k -> new ArrayList<>()).add(entry);
+    }
+
+    public List<Map<String, Object>> getPlayerQuestionResults(String username) {
+        return playerQuestionResults.getOrDefault(username, new ArrayList<>());
+    }
+
+    public void broadcastIndividualScores() {
+        for (Team team : teams)
+            for (User player : team.getPlayers())
+                player.sendMessage("[SCORE] " + player.getName() + ": "
+                        + sessionScores.getOrDefault(player.getUsername(), 0) + " pts");
+    }
+
+    // ----------------------------------------------------------- answer submit
+
+    public String submitAnswer(User user, String questionText, String answer) {
+        if (!questionActive) return "No active question. Answer ignored.";
+        answer = answer.trim().toUpperCase();
+        if (!answer.matches("[ABCD]")) return "Invalid answer. Please enter A, B, C, or D.";
+        AnswerManager.saveAnswer(sessionId, user.getUsername(), questionText, answer);
+        return "Answer submitted: " + answer;
+    }
+
+    // ---------------------------------------------------------------- getters
+
+    public String     getSessionId()      { return sessionId; }
+    public Question   getCurrentQuestion(){ return currentQuestion; }
+    public String     getQuestionName()   { return currentQuestion != null ? currentQuestion.getText() : null; }
+    public boolean    isQuestionActive()  { return questionActive; }
+    public List<Team> getTeams()          { return teams; }
+    public void       closeQuestion()     { questionActive = false; }
+
+    // ------------------------------------------------------------ broadcast
+
     public void broadcast(String message) {
-        for (Team team : currentRoom.getTeams()) {
-            for (User player : team.getPlayers()) {
+        for (Team team : teams)
+            for (User player : team.getPlayers())
                 player.sendMessage(message);
-            }
-        }
     }
 
-    public void sendMessage(String username, String message) {
-        for (Team team : currentRoom.getTeams()) {
-            for (User player : team.getPlayers()) {
-                if (player.getUsername().equals(username)) {
-                    player.sendMessage(message);
-                }
-            }
-        }
-    }
-
-    // Countdown timer with updates
-    public void startQuestionTimer(int duration) {
-        new Thread(() -> {
-            try {
-                if (duration > 10) {
-                    Thread.sleep((duration - 10) * 1000);
-                    broadcast("10 seconds remaining!");
-                }
-                Thread.sleep(5000);
-                broadcast("5 seconds remaining!");
-                Thread.sleep(5000);
-                broadcast("Time is up!");
-                closeQuestion();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+    private String teamNames() {
+        StringBuilder sb = new StringBuilder();
+        for (Team t : teams) { if (sb.length() > 0) sb.append(" vs "); sb.append(t.getName()); }
+        return sb.toString();
     }
 }

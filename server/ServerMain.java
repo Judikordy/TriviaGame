@@ -12,13 +12,12 @@ public class ServerMain {
 
     public static void main(String[] args) {
         System.out.println("Trivia Game Server started on port " + PORT);
-        
+
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket);
-                ClientHandler clientHandler = new ClientHandler(clientSocket);
-                pool.execute(clientHandler);
+                pool.execute(new ClientHandler(clientSocket));
             }
         } catch (IOException e) {
             e.printStackTrace();

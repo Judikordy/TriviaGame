@@ -5,28 +5,35 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class ClientMain {
+
     public static void main(String[] args) {
-        try (Socket socket = new Socket("localhost", 5000);
-             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-             Scanner scanner = new Scanner(System.in)) {
+        final String HOST = "localhost";
+        final int PORT = 5000;
 
-            // Read welcome message from server
-            System.out.println(in.readLine());
+        try (Socket socket = new Socket(HOST, PORT);
+             BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             PrintWriter out    = new PrintWriter(socket.getOutputStream(), true);
+             Scanner scanner    = new Scanner(System.in)) {
 
-            while (true) {
-                System.out.print("> ");
-                String command = scanner.nextLine();
-                out.println(command);
+            // ServerListener runs on a separate thread — receives all server messages
+            // (questions, timer broadcasts, results) without blocking user input
+            Thread listenerThread = new Thread(new ServerListener(in));
+            listenerThread.setDaemon(true);
+            listenerThread.start();
 
-                String response = in.readLine();
-                if (response == null) break;
-                System.out.println(response);
-
-                if (command.equalsIgnoreCase("EXIT")) break;
+            // Main thread handles user input and sends over TCP socket
+            while (listenerThread.isAlive()) {
+                if (scanner.hasNextLine()) {
+                    String input = scanner.nextLine().trim();
+                    if (input.isEmpty()) continue;
+                    out.println(input);
+                    if (input.equalsIgnoreCase("EXIT") || input.equals("-")) break;
+                }
             }
+
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Could not connect to server at " + HOST + ":" + PORT);
+            System.out.println("Make sure the server is running.");
         }
     }
 }

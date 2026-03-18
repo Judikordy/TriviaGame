@@ -9,8 +9,6 @@ public class Friends {
     // function getFriendRequests()
     // function acceptFriendRequest()
     // function rejectFriendRequest()
-    // function removeFriendRequest()
-    // function getMutualFriends()
     
     
 }

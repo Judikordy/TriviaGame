@@ -1,3 +1,0 @@
-friends,true,0
-friends,true,1
-family,true,0

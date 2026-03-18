@@ -1,0 +1,92 @@
+import json, os
+
+questions = [
+  # ── MATH ──────────────────────────────────────────────────────────────────
+  # Easy
+  {"id":1,"text":"What is 5 + 7?","category":"Math","difficulty":"Easy","choices":["10","11","12","13"],"answer":"C"},
+  {"id":2,"text":"What is 9 x 3?","category":"Math","difficulty":"Easy","choices":["24","27","30","21"],"answer":"B"},
+  {"id":3,"text":"What is 15 - 8?","category":"Math","difficulty":"Easy","choices":["5","6","7","8"],"answer":"C"},
+  {"id":4,"text":"What is 100 / 4?","category":"Math","difficulty":"Easy","choices":["20","25","30","40"],"answer":"B"},
+  # Medium
+  {"id":5,"text":"What is the square root of 144?","category":"Math","difficulty":"Medium","choices":["10","11","12","13"],"answer":"C"},
+  {"id":6,"text":"What is 2^10?","category":"Math","difficulty":"Medium","choices":["512","1024","2048","256"],"answer":"B"},
+  {"id":7,"text":"Solve: 3x + 6 = 21. What is x?","category":"Math","difficulty":"Medium","choices":["3","4","5","6"],"answer":"C"},
+  {"id":8,"text":"What is 15% of 200?","category":"Math","difficulty":"Medium","choices":["20","25","30","35"],"answer":"C"},
+  {"id":9,"text":"What is the area of a circle with radius 7? (use π ≈ 3.14)","category":"Math","difficulty":"Medium","choices":["143.07","153.86","163.54","133.21"],"answer":"B"},
+  # Hard
+  {"id":10,"text":"What is the derivative of x^3 + 2x?","category":"Math","difficulty":"Hard","choices":["3x^2","3x^2 + 2","x^2 + 2","2x^2 + 2"],"answer":"B"},
+  {"id":11,"text":"What is the integral of 2x dx?","category":"Math","difficulty":"Hard","choices":["x^2 + C","2x^2 + C","x + C","2 + C"],"answer":"A"},
+  {"id":12,"text":"How many prime numbers are there between 1 and 50?","category":"Math","difficulty":"Hard","choices":["13","14","15","16"],"answer":"C"},
+
+  # ── SCIENCE ───────────────────────────────────────────────────────────────
+  # Easy
+  {"id":13,"text":"What planet is known as the Red Planet?","category":"Science","difficulty":"Easy","choices":["Venus","Mars","Jupiter","Saturn"],"answer":"B"},
+  {"id":14,"text":"What is the chemical symbol for water?","category":"Science","difficulty":"Easy","choices":["WO","HO","H2O","W2O"],"answer":"C"},
+  {"id":15,"text":"How many bones are in the adult human body?","category":"Science","difficulty":"Easy","choices":["196","206","216","226"],"answer":"B"},
+  {"id":16,"text":"What gas do plants absorb from the atmosphere?","category":"Science","difficulty":"Easy","choices":["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"],"answer":"C"},
+  # Medium
+  {"id":17,"text":"What is the speed of light in a vacuum (approx)?","category":"Science","difficulty":"Medium","choices":["300,000 km/s","150,000 km/s","450,000 km/s","600,000 km/s"],"answer":"A"},
+  {"id":18,"text":"What is the atomic number of Carbon?","category":"Science","difficulty":"Medium","choices":["4","6","8","12"],"answer":"B"},
+  {"id":19,"text":"What is Newton's second law of motion?","category":"Science","difficulty":"Medium","choices":["F = mv","F = ma","F = m/a","F = a/m"],"answer":"B"},
+  {"id":20,"text":"What is the powerhouse of the cell?","category":"Science","difficulty":"Medium","choices":["Nucleus","Ribosome","Mitochondria","Golgi Apparatus"],"answer":"C"},
+  {"id":21,"text":"What type of bond involves sharing of electrons?","category":"Science","difficulty":"Medium","choices":["Ionic","Covalent","Metallic","Hydrogen"],"answer":"B"},
+  # Hard
+  {"id":22,"text":"What is the half-life of Carbon-14?","category":"Science","difficulty":"Hard","choices":["1,730 years","5,730 years","10,730 years","3,730 years"],"answer":"B"},
+  {"id":23,"text":"What is the Heisenberg Uncertainty Principle about?","category":"Science","difficulty":"Hard","choices":["Speed of light","Position and momentum","Mass and energy","Charge and spin"],"answer":"B"},
+  {"id":24,"text":"What particle has no charge and nearly no mass?","category":"Science","difficulty":"Hard","choices":["Proton","Electron","Neutron","Neutrino"],"answer":"D"},
+
+  # ── GEOGRAPHY ─────────────────────────────────────────────────────────────
+  # Easy
+  {"id":25,"text":"What is the capital of France?","category":"Geography","difficulty":"Easy","choices":["Berlin","Madrid","Paris","Rome"],"answer":"C"},
+  {"id":26,"text":"What is the largest continent?","category":"Geography","difficulty":"Easy","choices":["Africa","Europe","Asia","Australia"],"answer":"C"},
+  {"id":27,"text":"Which country has the largest population?","category":"Geography","difficulty":"Easy","choices":["USA","India","China","Brazil"],"answer":"C"},
+  {"id":28,"text":"What is the longest river in the world?","category":"Geography","difficulty":"Easy","choices":["Amazon","Nile","Yangtze","Mississippi"],"answer":"B"},
+  # Medium
+  {"id":29,"text":"What is the capital of Australia?","category":"Geography","difficulty":"Medium","choices":["Sydney","Melbourne","Canberra","Brisbane"],"answer":"C"},
+  {"id":30,"text":"Which country has the most natural lakes?","category":"Geography","difficulty":"Medium","choices":["Russia","USA","Brazil","Canada"],"answer":"D"},
+  {"id":31,"text":"What is the smallest country in the world?","category":"Geography","difficulty":"Medium","choices":["Monaco","San Marino","Vatican City","Liechtenstein"],"answer":"C"},
+  {"id":32,"text":"Which desert is the largest in the world?","category":"Geography","difficulty":"Medium","choices":["Gobi","Sahara","Arabian","Antarctic"],"answer":"D"},
+  {"id":33,"text":"What mountain range separates Europe from Asia?","category":"Geography","difficulty":"Medium","choices":["Alps","Himalayas","Ural Mountains","Andes"],"answer":"C"},
+  # Hard
+  {"id":34,"text":"What is the capital of Kazakhstan?","category":"Geography","difficulty":"Hard","choices":["Almaty","Astana","Shymkent","Karaganda"],"answer":"B"},
+  {"id":35,"text":"Which African country has the most pyramids?","category":"Geography","difficulty":"Hard","choices":["Egypt","Sudan","Ethiopia","Libya"],"answer":"B"},
+  {"id":36,"text":"What is the deepest lake in the world?","category":"Geography","difficulty":"Hard","choices":["Caspian Sea","Lake Superior","Lake Baikal","Lake Tanganyika"],"answer":"C"},
+
+  # ── HISTORY ───────────────────────────────────────────────────────────────
+  # Easy
+  {"id":37,"text":"In what year did World War II end?","category":"History","difficulty":"Easy","choices":["1943","1944","1945","1946"],"answer":"C"},
+  {"id":38,"text":"Who was the first President of the United States?","category":"History","difficulty":"Easy","choices":["Abraham Lincoln","Thomas Jefferson","George Washington","John Adams"],"answer":"C"},
+  {"id":39,"text":"Which ancient wonder was located in Alexandria?","category":"History","difficulty":"Easy","choices":["Colossus of Rhodes","Lighthouse of Alexandria","Hanging Gardens","Statue of Zeus"],"answer":"B"},
+  {"id":40,"text":"In what year did the Berlin Wall fall?","category":"History","difficulty":"Easy","choices":["1987","1988","1989","1990"],"answer":"C"},
+  # Medium
+  {"id":41,"text":"Who wrote the Declaration of Independence?","category":"History","difficulty":"Medium","choices":["George Washington","Benjamin Franklin","Thomas Jefferson","John Adams"],"answer":"C"},
+  {"id":42,"text":"What empire was ruled by Genghis Khan?","category":"History","difficulty":"Medium","choices":["Ottoman Empire","Roman Empire","Mongol Empire","Persian Empire"],"answer":"C"},
+  {"id":43,"text":"In what year did the French Revolution begin?","category":"History","difficulty":"Medium","choices":["1776","1789","1799","1804"],"answer":"B"},
+  {"id":44,"text":"Who was the first woman to win a Nobel Prize?","category":"History","difficulty":"Medium","choices":["Rosalind Franklin","Marie Curie","Ada Lovelace","Florence Nightingale"],"answer":"B"},
+  # Hard
+  {"id":45,"text":"What was the name of the ship that sank in 1912?","category":"History","difficulty":"Hard","choices":["Lusitania","Britannic","Titanic","Olympic"],"answer":"C"},
+  {"id":46,"text":"Which treaty ended World War I?","category":"History","difficulty":"Hard","choices":["Treaty of Paris","Treaty of Versailles","Treaty of Utrecht","Treaty of Westphalia"],"answer":"B"},
+  {"id":47,"text":"Who was the last Pharaoh of Ancient Egypt?","category":"History","difficulty":"Hard","choices":["Nefertiti","Cleopatra VII","Hatshepsut","Ramesses II"],"answer":"B"},
+
+  # ── GENERAL KNOWLEDGE ─────────────────────────────────────────────────────
+  # Easy
+  {"id":48,"text":"How many colors are in a rainbow?","category":"General Knowledge","difficulty":"Easy","choices":["5","6","7","8"],"answer":"C"},
+  {"id":49,"text":"What is the largest ocean on Earth?","category":"General Knowledge","difficulty":"Easy","choices":["Atlantic","Indian","Arctic","Pacific"],"answer":"D"},
+  {"id":50,"text":"How many sides does a hexagon have?","category":"General Knowledge","difficulty":"Easy","choices":["5","6","7","8"],"answer":"B"},
+  {"id":51,"text":"What language has the most native speakers?","category":"General Knowledge","difficulty":"Easy","choices":["English","Spanish","Mandarin Chinese","Hindi"],"answer":"C"},
+  # Medium
+  {"id":52,"text":"What is the most spoken language in the world by total speakers?","category":"General Knowledge","difficulty":"Medium","choices":["Spanish","English","Mandarin","Hindi"],"answer":"B"},
+  {"id":53,"text":"How many keys does a standard piano have?","category":"General Knowledge","difficulty":"Medium","choices":["76","82","88","92"],"answer":"C"},
+  {"id":54,"text":"What is the hardest natural substance on Earth?","category":"General Knowledge","difficulty":"Medium","choices":["Gold","Iron","Diamond","Quartz"],"answer":"C"},
+  {"id":55,"text":"In which sport would you perform a 'slam dunk'?","category":"General Knowledge","difficulty":"Medium","choices":["Volleyball","Tennis","Basketball","Baseball"],"answer":"C"},
+  # Hard
+  {"id":56,"text":"What is the most abundant gas in Earth's atmosphere?","category":"General Knowledge","difficulty":"Hard","choices":["Oxygen","Carbon Dioxide","Argon","Nitrogen"],"answer":"D"},
+  {"id":57,"text":"What is the currency of Japan?","category":"General Knowledge","difficulty":"Hard","choices":["Yuan","Won","Yen","Ringgit"],"answer":"C"},
+  {"id":58,"text":"Who invented the World Wide Web?","category":"General Knowledge","difficulty":"Hard","choices":["Bill Gates","Steve Jobs","Tim Berners-Lee","Linus Torvalds"],"answer":"C"},
+]
+
+output_path = os.path.join(os.path.dirname(__file__), "questions.json")
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(questions, f, indent=2, ensure_ascii=False)
+
+print(f"Done! {len(questions)} questions written to {output_path}")

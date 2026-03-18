@@ -1,158 +1,112 @@
 package server;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import models.Question;
+
+import java.io.IOException;
+import java.util.*;
 
 public class QuestionBank implements IQuestionBank {
 
-    private List<Question> questions;
-    public static final String questionsFilePath = "data/questions.txt";
+    private final List<Question> questions = new ArrayList<>();
+    public static final String QUESTIONS_FILE = "data/questions.json";
 
-    public QuestionBank() {
-        questions = new ArrayList<>();
-    }
+    public QuestionBank() {}
 
     @Override
     public void loadQuestions() {
-        try (BufferedReader reader = new BufferedReader(new FileReader(questionsFilePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
+        try {
+            List<Map<String, Object>> records = JsonUtil.readArray(QUESTIONS_FILE);
+            for (Map<String, Object> r : records) {
+                int    id         = (int)    r.getOrDefault("id", 0);
+                String text       = (String) r.get("text");
+                String category   = (String) r.get("category");
+                String difficulty = (String) r.get("difficulty");
+                String answer     = (String) r.get("answer");
 
-                if (parts.length < 9) continue; // id + text + category + difficulty + answer + 4 choices
-
-                int id = Integer.parseInt(parts[0].trim());
-                String text = parts[1].trim();
-                String category = parts[2].trim();
-                String difficulty = parts[3].trim();
-                String answer = parts[4].trim();
-
+                @SuppressWarnings("unchecked")
+                List<Object> rawChoices = (List<Object>) r.get("choices");
                 List<String> choices = new ArrayList<>();
-                for (int i = 5; i < parts.length; i++) {
-                    choices.add(parts[i].trim());
-                }
+                if (rawChoices != null) for (Object c : rawChoices) choices.add(c.toString());
 
-                Question q = new Question(id, text, category, difficulty, choices, answer);
-                questions.add(q);
+                questions.add(new Question(id, text, category, difficulty, choices, answer));
             }
-
             System.out.println("Loaded " + questions.size() + " questions.");
-
-        } catch (Exception e) {
-            System.out.println("Error loading questions: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("questions.json not found: " + e.getMessage());
         }
     }
 
-    @Override
-    public void addQuestion(Question question) {
-        questions.add(question);
-    }
+    @Override public void addQuestion(Question q)    { questions.add(q); }
+    @Override public void removeQuestion(Question q) { questions.remove(q); }
 
     @Override
-    public void removeQuestion(Question question) {
-        questions.remove(question);
-    }
-
-    public Question getQuestionById(int id) {
-        for (Question q : questions) {
-            if (q.getId() == id) {
-                return q;
-            }
-        }
-        return null;
+    public void saveQuestion(Question q) {
+        questions.add(q);
+        persistAll();
     }
 
     @Override
-    public List<Question> getQuestionByCategory(String category) {
-        List<Question> result = new ArrayList<>();
-        for (Question q : questions) {
-            if (q.getCategory().equalsIgnoreCase(category)) {
-                result.add(q);
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public List<Question> getQuestionByDifficulty(String difficulty) {
-        List<Question> result = new ArrayList<>();
-        for (Question q : questions) {
-            if (q.getDifficulty().equalsIgnoreCase(difficulty)) {
-                result.add(q);
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public void saveQuestion(Question question) {
-        try (FileWriter writer = new FileWriter(questionsFilePath, true)) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(question.getId()).append(",")
-              .append(question.getText()).append(",")
-              .append(question.getCategory()).append(",")
-              .append(question.getDifficulty()).append(",")
-              .append(question.getAnswer());
-
-            for (String choice : question.getChoices()) {
-                sb.append(",").append(choice);
-            }
-
-            sb.append("\n");
-            writer.write(sb.toString());
-
-        } catch (Exception e) {
-            System.out.println("Error saving question: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public List<Question> getAllQuestions() {
-        return new ArrayList<>(questions);
-    }
+    public List<Question> getAllQuestions() { return new ArrayList<>(questions); }
 
     @Override
     public Question getRandomQuestion() {
         if (questions.isEmpty()) return null;
-        int index = (int)(Math.random() * questions.size());
-        return questions.get(index);
+        return questions.get((int)(Math.random() * questions.size()));
+    }
+
+    @Override
+    public List<Question> getQuestionByCategory(String category) {
+        List<Question> r = new ArrayList<>();
+        for (Question q : questions)
+            if (q.getCategory().equalsIgnoreCase(category)) r.add(q);
+        return r;
+    }
+
+    @Override
+    public List<Question> getQuestionByDifficulty(String difficulty) {
+        List<Question> r = new ArrayList<>();
+        for (Question q : questions)
+            if (q.getDifficulty().equalsIgnoreCase(difficulty)) r.add(q);
+        return r;
+    }
+
+    @Override
+    public List<Question> getQuestionsByCategoryAndDifficulty(String category, String difficulty) {
+        List<Question> r = new ArrayList<>();
+        for (Question q : questions)
+            if (q.getCategory().equalsIgnoreCase(category) && q.getDifficulty().equalsIgnoreCase(difficulty))
+                r.add(q);
+        return r;
     }
 
     @Override
     public List<Question> getRandomQuestions(String category, String difficulty, int n) {
         List<Question> filtered = getQuestionsByCategoryAndDifficulty(category, difficulty);
         Collections.shuffle(filtered);
-
-        if (filtered.size() > n) {
-            return filtered.subList(0, n);
-        }
-        return filtered;
+        return filtered.size() > n ? filtered.subList(0, n) : filtered;
     }
 
-    @Override
-    public List<Question> getQuestionsByCategoryAndDifficulty(String category, String difficulty) {
-        List<Question> result = new ArrayList<>();
+    public Question getQuestionById(int id) {
+        for (Question q : questions) if (q.getId() == id) return q;
+        return null;
+    }
+
+    private void persistAll() {
+        List<Map<String, Object>> records = new ArrayList<>();
         for (Question q : questions) {
-            if (q.getCategory().equalsIgnoreCase(category) &&
-                q.getDifficulty().equalsIgnoreCase(difficulty)) {
-                result.add(q);
-            }
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("id",         q.getId());
+            r.put("text",       q.getText());
+            r.put("category",   q.getCategory());
+            r.put("difficulty", q.getDifficulty());
+            r.put("answer",     q.getAnswer());
+            r.put("choices",    new ArrayList<>(q.getChoices()));
+            records.add(r);
         }
-        return result;
-    }
-
-    public static void main(String[] args) {
-        QuestionBank questionBank = new QuestionBank();
-        questionBank.loadQuestions();
-
-        for (Question q : questionBank.getAllQuestions()) {
-            System.out.println(q);
+        try {
+            JsonUtil.writeArray(QUESTIONS_FILE, records);
+        } catch (IOException e) {
+            System.out.println("Error saving questions.json: " + e.getMessage());
         }
     }
 }

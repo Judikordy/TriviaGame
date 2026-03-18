@@ -1,8 +1,5 @@
 package server;
 
-import models.Question;
-import java.util.List;
-
 public class GameEngine {
 
     private QuestionBank questionBank;
@@ -18,29 +15,10 @@ public class GameEngine {
         questionBank.loadQuestions();
     }
 
+    // GameSession now manages its own round loop and timer.
+    // This method is kept for any external callers but is no longer used internally.
     public void startRound(GameSession session, int questionIndex) {
-
-        List<Question> questions = questionBank.getAllQuestions();
-
-        if (questions.isEmpty()) {
-            System.out.println("No questions available.");
-            return;
-        }
-
-        if (questionIndex < 0 || questionIndex >= questions.size()) {
-            System.out.println("Invalid question index.");
-            return;
-        }
-
-        Question q = questions.get(questionIndex);
-
-        session.broadcast("Question: " + q.getText());
-        session.broadcast("Choices: " + q.getChoices());
-
-        session.openQuestion();
-    
-        int duration = configManager.getInt("questionTimeSeconds", 15);
-        session.startQuestionTimer(duration);
+        session.nextRound();
     }
 
     public boolean checkQuit(String input){
