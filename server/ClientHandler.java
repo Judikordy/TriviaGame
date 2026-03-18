@@ -21,6 +21,81 @@ public class ClientHandler implements Runnable {
         this.currentUser = null;
     }
 
+    private void askGameMode() throws IOException {
+        out.println("Choose game mode: 1 for Single Player, 2 for Multiplayer");
+        String mode = in.readLine();
+
+        if (mode == null) {
+            out.println("No input received. Defaulting to Single Player.");
+            mode = "1";
+        }
+
+        switch (mode) {
+            case "1":
+                out.println("You chose Single Player mode.");
+                out.println("Enter the desired question category (Math, Geography, History, Science): ");
+                String category = in.readLine();
+
+                if (category == null) {
+                    out.println("No input received. Defaulting to Math.");
+                    category = "Math";
+                }
+
+                out.println("Enter the desired question difficulty (Easy, Medium, Hard): ");
+                String difficulty = in.readLine();
+
+                if (difficulty == null) {
+                    out.println("No input received. Defaulting to Easy.");
+                    difficulty = "Easy";
+                }
+
+                out.println("Enter the maximum number of questions: ");
+                String maxQuestions = in.readLine();
+
+                if (maxQuestions == null) {
+                    out.println("No input received. Defaulting to 5.");
+                    maxQuestions = "5";
+                }
+
+                startSinglePlayer();
+                break;
+            case "2":
+                out.println("You chose Multiplayer mode.");
+                out.println("Choose 1 to create a room or 2 to join an existing room.");
+
+                String choice = in.readLine();
+
+                if (choice == null) {
+                    out.println("No input received. Defaulting to creating a room.");
+                    choice = "1";
+                }
+                else if (choice.equals("1")) {
+                        out.println("Enter the name of the room: ");
+                        String roomName = in.readLine();
+                        gameManager.createRoom(roomName, true);
+                    }
+                    else {
+                        if (choice.equals("2")) {
+                            out.println("Enter the name of the room: ");
+                            String roomName = in.readLine();
+                            out.println("Enter the name of the team: ");
+                            String teamName = in.readLine();
+                            gameManager.joinRoom(roomName, teamName, currentUser);
+                        }
+                    }
+                // Multiplayer flow can continue as before (create/join room)
+                break;
+            default:
+                out.println("Invalid choice. Please choose 1 or 2.");
+                askGameMode();
+        }
+    }
+
+    private void startSinglePlayer() {
+        out.println("Starting Single Player game...");
+        // Implement single-player game logic here
+    }
+
     @Override
     public void run() {
         try {
@@ -46,6 +121,8 @@ public class ClientHandler implements Runnable {
                         if (loginResult.equals("200 OK")) {
                             currentUser = auth.getUser(parts[1]);
                             out.println("Login successful. Welcome, " + currentUser.getName() + "!");
+                            
+                            askGameMode();
                         } else {
                             out.println("Login failed: " + loginResult);
                         }
@@ -61,6 +138,8 @@ public class ClientHandler implements Runnable {
                             currentUser = new User(parts[1], parts[2], parts[3]);
                             auth.saveUser(currentUser);
                             out.println("Registration successful. Welcome, " + currentUser.getName() + "!");
+                            
+                            askGameMode();
                         } else {
                             out.println("Registration failed: " + registerResult);
                         }
@@ -158,4 +237,6 @@ public class ClientHandler implements Runnable {
     public void sendMessage(String message) {
         out.println(message);
     }
+
+    
 }

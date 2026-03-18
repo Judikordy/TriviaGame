@@ -45,7 +45,7 @@ public class GameManager {
     // Save a room to file
     public void saveRoom(GameRoom room) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(roomsFilePath, true))) {
-            writer.write(room.getRoomName() + "," + room.isMultiplayer());
+            writer.write(room.getRoomName() + "," + room.isMultiplayer() + "," + room.getTeams().size());
             writer.newLine();
         } catch (IOException e) {
             System.out.println("Error saving room: " + e.getMessage());
@@ -59,7 +59,6 @@ public class GameManager {
         }
         GameRoom room = new GameRoom(roomName, isMultiplayer);
         rooms.put(roomName, room);
-        saveRoom(room); // ✅ persist to file
         return "Room created: " + roomName;
     }
 
@@ -94,6 +93,14 @@ public class GameManager {
 
         team.addPlayer(user);
         return "Joined room " + roomName + " as team " + teamName;
+    }
+
+    public void listAvailableTeams() {
+        for (GameRoom room : rooms.values()) {
+            for (Team team : room.getTeams()) {
+                System.out.println("Room: " + room.getRoomName() + ", Team: " + team.getName());
+            }
+        }
     }
 
     public GameSession getSessionForUser(User user) {
